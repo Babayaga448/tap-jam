@@ -17,8 +17,8 @@ import { Play, Pause } from "lucide-react";
 // Game Constants
 const COLUMNS = 4;
 const ROWS_ON_SCREEN = 6;
-const TILE_SPEED = 4; // pixels per frame
-const SPAWN_RATE = 60; // frames between spawns (1 tile per second at 60fps)
+const TILE_SPEED = 8; // pixels per frame
+const SPAWN_RATE = 30; // frames between spawns (1 tile per second at 60fps)
 
 export default function TapJamGame() {
   // Game State
