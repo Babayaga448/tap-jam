@@ -540,7 +540,7 @@ export default function TapJamGame() {
                   Tap the tiles in order as they fall!
                 </p>
                 <p className="text-white/70 font-orbitron text-sm">
-                  Miss the sequence and it's game over!
+                  Miss the sequence and its game over!
                 </p>
               </div>
 
