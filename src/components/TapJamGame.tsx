@@ -455,7 +455,7 @@ export default function TapJamGame() {
                 Tap the falling tiles to score points!
               </p>
               <p className="text-white/70 font-orbitron">
-                Miss a tile and it's game over!
+                Miss a tile and its game over!
               </p>
             </div>
 

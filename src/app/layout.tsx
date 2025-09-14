@@ -24,12 +24,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body
         className={`${orbitron.variable} font-orbitron antialiased relative w-full h-screen overflow-hidden select-none bg-primary`}
       >
