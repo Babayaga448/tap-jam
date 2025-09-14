@@ -572,14 +572,6 @@ export default function TapJamGame() {
           {/* Game Columns */}
           {gameState.gameStarted && (
             <div className="flex h-full relative">
-              {/* Debug info */}
-              <div className="absolute top-2 left-2 text-white text-xs bg-black/50 p-2 rounded z-50">
-                <div>Tiles: {tiles.length}</div>
-                <div>Active: {tiles.filter(t => t.isActive).length}</div>
-                <div>Playing: {gameState.isPlaying ? 'Yes' : 'No'}</div>
-                <div>Paused: {gameState.isPaused ? 'Yes' : 'No'}</div>
-              </div>
-              
               {Array.from({ length: COLUMNS }, (_, index) => (
                 <div
                   key={index}
