@@ -1,26 +1,221 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #836EF9;
+  --foreground: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-orbitron: var(--font-orbitron);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  cursor: default;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Orbitron', sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Prevent dragging on images and game elements */
+img {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  pointer-events: none;
+}
+
+/* Prevent text selection on game elements */
+.game-area {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Tile animations */
+@keyframes tileSlide {
+  from {
+    transform: translateY(-100px);
+  }
+  to {
+    transform: translateY(100vh);
+  }
+}
+
+@keyframes tileClick {
+  0% {
+    transform: scale(1);
+    background-color: #200052;
+  }
+  50% {
+    transform: scale(0.9);
+    background-color: #FFC5D3;
+  }
+  100% {
+    transform: scale(1);
+    background-color: #FFC5D3;
+  }
+}
+
+@keyframes gameStart {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scoreIncrement {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes levelUp {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(0px) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(20px) scale(1);
+  }
+}
+
+@keyframes gameOver {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Game container styles */
+.game-container {
+  background: linear-gradient(180deg, #836EF9 0%, #6B46FF 100%);
+}
+
+.tile {
+  background-color: #200052;
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.tile:hover {
+  transform: scale(1.05);
+}
+
+.tile.clicked {
+  background-color: #FFC5D3;
+  animation: tileClick 0.3s ease;
+}
+
+.tile.missed {
+  background-color: #ff4444;
+}
+
+/* Level up notification */
+.level-notification {
+  animation: levelUp 2s ease-in-out;
+}
+
+/* Score animation */
+.score-animate {
+  animation: scoreIncrement 0.3s ease;
+}
+
+/* Game start animation */
+.game-start {
+  animation: gameStart 0.5s ease;
+}
+
+/* Game over modal */
+.game-over-modal {
+  animation: gameOver 0.5s ease;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Button styles */
+.btn-primary {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Toast styles */
+.Toastify__toast {
+  background: rgba(32, 0, 82, 0.95) !important;
+  color: white !important;
+  border: 1px solid rgba(255, 197, 211, 0.3) !important;
+}
+
+.Toastify__progress-bar {
+  background: #FFC5D3 !important;
+}
+
+/* Loading spinner */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
