@@ -123,17 +123,20 @@ img {
 }
 
 .tile {
-  background-color: #200052;
+  background-color: #ffffff; /* Changed to white for visibility */
   transition: all 0.1s ease;
   cursor: pointer;
+  border: 2px solid #ddd;
 }
 
 .tile:hover {
-  transform: scale(1.05);
+  transform: scale(1.02);
+  background-color: #f0f0f0;
 }
 
 .tile.clicked {
   background-color: #FFC5D3;
+  border-color: #FFC5D3;
   animation: tileClick 0.3s ease;
 }
 

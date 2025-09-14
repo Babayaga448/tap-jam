@@ -411,7 +411,14 @@ export default function TapJamGame() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (gameState.gameStarted && !gameState.isGameOver) {
-        updateGameState({ isPaused: document.hidden });
+        const shouldPause = document.hidden;
+        updateGameState({ isPaused: shouldPause });
+        
+        if (!shouldPause) {
+          // Resume game loop when window becomes visible
+          lastTileSpawnRef.current = performance.now();
+          animationRef.current = requestAnimationFrame(gameLoop);
+        }
       }
     };
 
@@ -424,9 +431,8 @@ export default function TapJamGame() {
     const handleWindowFocus = () => {
       if (gameState.gameStarted && !gameState.isGameOver && gameState.isPaused) {
         updateGameState({ isPaused: false });
-        if (gameState.isPlaying) {
-          animationRef.current = requestAnimationFrame(gameLoop);
-        }
+        lastTileSpawnRef.current = performance.now();
+        animationRef.current = requestAnimationFrame(gameLoop);
       }
     };
 
@@ -439,7 +445,7 @@ export default function TapJamGame() {
       window.removeEventListener("blur", handleWindowBlur);
       window.removeEventListener("focus", handleWindowFocus);
     };
-  }, [gameState.gameStarted, gameState.isGameOver, gameState.isPaused, gameState.isPlaying, gameLoop, updateGameState]);
+  }, [gameState.gameStarted, gameState.isGameOver, gameState.isPaused, gameLoop, updateGameState]);
 
   // Cleanup
   useEffect(() => {
