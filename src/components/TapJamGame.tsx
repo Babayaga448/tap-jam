@@ -566,23 +566,25 @@ export default function TapJamGame() {
           </div>
         )}
 
-        {/* Game Columns */}
+        {/* Game Columns - Optimized rendering */}
         {gameState.gameStarted && (
           <div className="flex h-full">
-            {Array.from({ length: COLUMNS }, (_, index) => (
-              <div
-                key={index}
-                className="flex-1 border-r border-white/20 relative cursor-pointer hover:bg-white/5 transition-colors"
-                style={{ borderRightWidth: index === COLUMNS - 1 ? 0 : 1 }}
-                onClick={(e) => handleColumnClick(index, e)}
-              >
-                {/* Column tiles */}
-                {tiles
-                  .filter(tile => tile.column === index)
-                  .map(tile => (
+            {Array.from({ length: COLUMNS }, (_, columnIndex) => {
+              // Pre-filter tiles for this column to avoid filtering on every render
+              const columnTiles = tiles.filter(tile => tile.column === columnIndex);
+              
+              return (
+                <div
+                  key={columnIndex}
+                  className="flex-1 border-r border-white/20 relative cursor-pointer hover:bg-white/5 transition-colors"
+                  style={{ borderRightWidth: columnIndex === COLUMNS - 1 ? 0 : 1 }}
+                  onClick={(e) => handleColumnClick(columnIndex, e)}
+                >
+                  {/* Pre-filtered column tiles */}
+                  {columnTiles.map(tile => (
                     <div
                       key={tile.id}
-                      className="absolute w-full cursor-pointer transition-all duration-150"
+                      className="absolute w-full cursor-pointer"
                       style={{
                         height: TILE_HEIGHT,
                         top: Math.max(0, tile.position),
@@ -592,6 +594,9 @@ export default function TapJamGame() {
                         boxShadow: tile.isClicked 
                           ? '0 0 10px rgba(255, 197, 211, 0.8)' 
                           : '0 2px 4px rgba(0,0,0,0.1)',
+                        // Add transform3d for hardware acceleration
+                        transform: 'translate3d(0, 0, 0)',
+                        willChange: 'top',
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -603,8 +608,9 @@ export default function TapJamGame() {
                       }}
                     />
                   ))}
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
