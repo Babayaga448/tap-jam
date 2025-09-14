@@ -16,11 +16,10 @@ import { Play, Pause } from "lucide-react";
 
 const TILE_HEIGHT = 120;
 const COLUMNS = 4;
-const BASE_SPEED = 2;
+const BASE_SPEED = 1.5;
 const LEVEL_THRESHOLD = 10;
-const SPEED_INCREASE = 0.3;
-const TILE_SPAWN_INTERVAL = 800;
-const GAME_WIDTH = 400; // Fixed game width
+const SPEED_INCREASE = 0.2;
+const TILE_SPAWN_INTERVAL = 1200;
 
 export default function TapJamGame() {
   // Game State
@@ -41,6 +40,9 @@ export default function TapJamGame() {
   const [gameSessionToken, setGameSessionToken] = useState<string | null>(null);
   const [gameSessionId, setGameSessionId] = useState<string | null>(null);
   const [showLevelUp, setShowLevelUp] = useState(false);
+  const [nextTileSequence, setNextTileSequence] = useState(0);
+  const [lastColumnUsed, setLastColumnUsed] = useState<number | null>(null);
+  const [consecutiveColumnCount, setConsecutiveColumnCount] = useState(0);
 
   // Refs
   const gameAreaRef = useRef<HTMLDivElement>(null);
@@ -154,39 +156,84 @@ export default function TapJamGame() {
     [debouncedSubmit]
   );
 
-  // Generate new tile
+  // Generate new tile with anti-consecutive logic
   const generateTile = useCallback((): Tile => {
+    let column: number;
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    do {
+      column = Math.floor(Math.random() * COLUMNS);
+      attempts++;
+    } while (
+      attempts < maxAttempts &&
+      lastColumnUsed === column && 
+      consecutiveColumnCount >= 1
+    );
+
+    if (attempts >= maxAttempts) {
+      column = Math.floor(Math.random() * COLUMNS);
+    }
+
+    // Update column tracking
+    if (column === lastColumnUsed) {
+      setConsecutiveColumnCount(prev => prev + 1);
+    } else {
+      setConsecutiveColumnCount(0);
+      setLastColumnUsed(column);
+    }
+
+    const tileId = `tile-${Date.now()}-${Math.random()}`;
+    const sequence = nextTileSequence;
+    setNextTileSequence(prev => prev + 1);
+
     return {
-      id: Date.now() + Math.random().toString(),
-      column: Math.floor(Math.random() * COLUMNS),
+      id: tileId,
+      column,
       position: -TILE_HEIGHT,
       isActive: true,
       isClicked: false,
       speed: BASE_SPEED + (gameStateRef.current.level - 1) * SPEED_INCREASE,
+      sequence,
     };
-  }, []);
+  }, [lastColumnUsed, consecutiveColumnCount, nextTileSequence]);
 
-  // Handle tile click
+  // Handle tile click with sequence validation
   const handleTileClick = useCallback((tileId: string) => {
     if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) return;
 
+    const clickedTile = tilesRef.current.find(tile => tile.id === tileId);
+    if (!clickedTile) return;
+
+    // Check if it's the correct sequence
+    const activeTiles = tilesRef.current
+      .filter(tile => tile.isActive && !tile.isClicked)
+      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+
+    const expectedTile = activeTiles[0];
+
+    if (!expectedTile || clickedTile.id !== expectedTile.id) {
+      console.log('Wrong tile clicked - Game Over!');
+      updateGameState({ isPlaying: false, isGameOver: true });
+      return;
+    }
+
+    // Correct tile clicked
     setTiles(prevTiles => {
-      const newTiles = prevTiles.map(tile => {
+      return prevTiles.map(tile => {
         if (tile.id === tileId && tile.isActive && !tile.isClicked) {
           updateScore(1);
           return { ...tile, isClicked: true, isActive: false };
         }
         return tile;
       });
-      return newTiles;
     });
-  }, [updateScore]);
+  }, [updateScore, updateGameState]);
 
   // Handle column click (fail if clicking empty space)
   const handleColumnClick = useCallback((column: number, event: React.MouseEvent) => {
     if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) return;
 
-    // Check if there's an active tile in this column at the click position
     const rect = gameAreaRef.current?.getBoundingClientRect();
     if (!rect) return;
 
@@ -200,7 +247,6 @@ export default function TapJamGame() {
     );
 
     if (!activeTileInColumn) {
-      // Clicked empty space in column - Game Over!
       console.log('Clicked empty space in column', column);
       updateGameState({ isPlaying: false, isGameOver: true });
     }
@@ -212,7 +258,8 @@ export default function TapJamGame() {
 
     // Spawn new tiles
     if (currentTime - lastTileSpawnRef.current > TILE_SPAWN_INTERVAL) {
-      setTiles(prev => [...prev, generateTile()]);
+      const newTile = generateTile();
+      setTiles(prev => [...prev, newTile]);
       lastTileSpawnRef.current = currentTime;
     }
 
@@ -221,9 +268,7 @@ export default function TapJamGame() {
       const gameHeight = gameAreaRef.current?.getBoundingClientRect().height || window.innerHeight;
       
       return prevTiles.filter(tile => {
-        // Remove tiles that are off screen
         if (tile.position > gameHeight + TILE_HEIGHT) {
-          // If tile was not clicked and reached bottom, game over
           if (tile.isActive && !tile.isClicked) {
             updateGameState({ isPlaying: false, isGameOver: true });
             return false;
@@ -245,6 +290,10 @@ export default function TapJamGame() {
   // Start game
   const startGame = useCallback(() => {
     setTiles([]);
+    setNextTileSequence(0);
+    setLastColumnUsed(null);
+    setConsecutiveColumnCount(0);
+    
     updateGameState({
       score: 0,
       localScore: 0,
@@ -282,14 +331,10 @@ export default function TapJamGame() {
       const newPausedState = !gameState.isPaused;
       updateGameState({ isPaused: newPausedState });
       
-      // If resuming (newPausedState is false), restart the game loop
       if (!newPausedState) {
-        console.log('Resuming game - restarting animation loop');
-        // Reset the last spawn time to current time to prevent immediate spawning
         lastTileSpawnRef.current = performance.now();
         animationRef.current = requestAnimationFrame(gameLoop);
       } else {
-        console.log('Pausing game - stopping animation loop');
         if (animationRef.current) {
           cancelAnimationFrame(animationRef.current);
           animationRef.current = null;
@@ -305,6 +350,10 @@ export default function TapJamGame() {
     }
     
     setTiles([]);
+    setNextTileSequence(0);
+    setLastColumnUsed(null);
+    setConsecutiveColumnCount(0);
+    
     updateGameState({
       score: 0,
       localScore: 0,
@@ -318,7 +367,6 @@ export default function TapJamGame() {
       isSubmitting: false,
     });
 
-    // End game session
     if (gameSessionId) {
       endGameSession.mutate(
         { sessionId: gameSessionId },
@@ -340,13 +388,11 @@ export default function TapJamGame() {
   // Handle game over
   useEffect(() => {
     if (gameState.isGameOver && gameState.gameStarted) {
-      // Submit final score
       if (submitTimeoutRef.current) {
         clearTimeout(submitTimeoutRef.current);
       }
       submitScoreBatch(gameState.localScore);
 
-      // End game session
       if (gameSessionId) {
         endGameSession.mutate(
           { sessionId: gameSessionId },
@@ -374,7 +420,6 @@ export default function TapJamGame() {
         updateGameState({ isPaused: shouldPause });
         
         if (!shouldPause) {
-          // Resume game loop when window becomes visible
           lastTileSpawnRef.current = performance.now();
           animationRef.current = requestAnimationFrame(gameLoop);
         }
@@ -430,7 +475,7 @@ export default function TapJamGame() {
   );
 
   return (
-    <div className="min-h-screen bg-primary relative overflow-hidden flex items-center justify-center">
+    <div className="min-h-screen bg-primary relative overflow-hidden">
       {/* Player Profile */}
       <PlayerProfile
         isLoadingUserName={isLoadingUserName}
@@ -476,101 +521,92 @@ export default function TapJamGame() {
         </div>
       )}
 
-      {/* Responsive Game Container */}
-      <div 
-        className="relative bg-black/20 backdrop-blur-sm rounded-lg border-2 border-white/20 shadow-2xl overflow-hidden"
-        style={{ 
-          width: `min(${GAME_WIDTH}px, 90vw)`,
-          height: `min(600px, 80vh)`,
-        }}
+      {/* Game Area */}
+      <div
+        ref={gameAreaRef}
+        className="relative w-full h-screen overflow-hidden game-area"
       >
-        <div
-          ref={gameAreaRef}
-          className="relative w-full h-full game-area"
-        >
-          {/* Game Start Screen */}
-          {!gameState.gameStarted && usernameData?.hasUsername && (
-            <div className="h-full flex flex-col items-center justify-center gap-6 z-40 p-4">
-              <div className="text-center">
-                <h1 className="text-4xl font-bold text-white mb-4 font-orbitron">
-                  TAP JAM
-                </h1>
-                <p className="text-lg text-white/80 mb-6 font-orbitron">
-                  Fast-paced sound tile game
-                </p>
-              </div>
+        {/* Game Start Screen */}
+        {!gameState.gameStarted && usernameData?.hasUsername && (
+          <div className="h-screen flex flex-col items-center justify-center gap-8 z-40">
+            <div className="text-center">
+              <h1 className="text-6xl landscape:text-4xl font-bold text-white mb-4 font-orbitron">
+                TAP JAM
+              </h1>
+              <p className="text-xl landscape:text-lg text-white/80 mb-8 font-orbitron">
+                Fast-paced sound tile game
+              </p>
+            </div>
 
-              <div className="text-center mb-6">
-                <p className="text-white/90 mb-2 font-orbitron">
-                  Tap the falling tiles to score points!
-                </p>
-                <p className="text-white/70 font-orbitron text-sm">
-                  Miss a tile and its game over!
-                </p>
-              </div>
+            <div className="text-center mb-8">
+              <p className="text-white/90 mb-4 font-orbitron text-lg landscape:text-base">
+                Tap the tiles in order as they fall!
+              </p>
+              <p className="text-white/70 font-orbitron">
+                Miss the sequence and its game over!
+              </p>
+            </div>
 
-              <button
-                onClick={startGame}
-                className="px-8 py-3 btn-primary rounded-xl font-bold text-xl text-white shadow-lg transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-white/30 font-orbitron game-start"
+            <button
+              onClick={startGame}
+              className="px-12 py-4 btn-primary rounded-2xl font-bold text-2xl landscape:text-xl text-white shadow-lg transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-white/30 font-orbitron game-start"
+            >
+              PLAY
+            </button>
+          </div>
+        )}
+
+        {/* Loading Username */}
+        {isLoadingUserName && (
+          <div className="absolute z-40 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="flex items-center justify-center gap-3 text-white">
+              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              <span className="text-xl font-orbitron">Loading...</span>
+            </div>
+          </div>
+        )}
+
+        {/* Game Columns */}
+        {gameState.gameStarted && (
+          <div className="flex h-full">
+            {Array.from({ length: COLUMNS }, (_, index) => (
+              <div
+                key={index}
+                className="flex-1 border-r border-white/20 relative cursor-pointer hover:bg-white/5 transition-colors"
+                style={{ borderRightWidth: index === COLUMNS - 1 ? 0 : 1 }}
+                onClick={(e) => handleColumnClick(index, e)}
               >
-                PLAY
-              </button>
-            </div>
-          )}
-
-          {/* Loading Username */}
-          {isLoadingUserName && (
-            <div className="absolute z-40 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-              <div className="flex items-center justify-center gap-3 text-white">
-                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                <span className="text-lg font-orbitron">Loading...</span>
+                {/* Column tiles */}
+                {tiles
+                  .filter(tile => tile.column === index)
+                  .map(tile => (
+                    <div
+                      key={tile.id}
+                      className="absolute w-full cursor-pointer transition-all duration-150"
+                      style={{
+                        height: TILE_HEIGHT,
+                        top: Math.max(0, tile.position),
+                        zIndex: 10,
+                        backgroundColor: tile.isClicked ? '#FFC5D3' : '#FFFFFF',
+                        border: `2px solid ${tile.isClicked ? '#FF69B4' : '#CCCCCC'}`,
+                        boxShadow: tile.isClicked 
+                          ? '0 0 10px rgba(255, 197, 211, 0.8)' 
+                          : '0 2px 4px rgba(0,0,0,0.1)',
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTileClick(tile.id);
+                      }}
+                      onTouchEnd={(e) => {
+                        e.stopPropagation();
+                        handleTileClick(tile.id);
+                      }}
+                    />
+                  ))}
               </div>
-            </div>
-          )}
-
-          {/* Game Columns */}
-          {gameState.gameStarted && (
-            <div className="flex h-full">
-              {Array.from({ length: COLUMNS }, (_, index) => (
-                <div
-                  key={index}
-                  className="flex-1 border-r border-white/20 relative cursor-pointer hover:bg-white/5 transition-colors"
-                  style={{ borderRightWidth: index === COLUMNS - 1 ? 0 : 1 }}
-                  onClick={(e) => handleColumnClick(index, e)}
-                >
-                  {/* Column tiles with FIXED COLORS */}
-                  {tiles
-                    .filter(tile => tile.column === index)
-                    .map(tile => (
-                      <div
-                        key={tile.id}
-                        className="absolute w-full cursor-pointer transition-all duration-150"
-                        style={{
-                          height: TILE_HEIGHT,
-                          top: Math.max(0, tile.position),
-                          zIndex: 10,
-                          // FIXED: Use bright white for unclicked, bright pink for clicked
-                          backgroundColor: tile.isClicked ? '#FFC5D3' : '#FFFFFF',
-                          border: `2px solid ${tile.isClicked ? '#FF69B4' : '#CCCCCC'}`,
-                          boxShadow: tile.isClicked 
-                            ? '0 0 10px rgba(255, 197, 211, 0.8)' 
-                            : '0 2px 4px rgba(0,0,0,0.2)',
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTileClick(tile.id);
-                        }}
-                        onTouchEnd={(e) => {
-                          e.stopPropagation();
-                          handleTileClick(tile.id);
-                        }}
-                      />
-                    ))}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Modals */}
