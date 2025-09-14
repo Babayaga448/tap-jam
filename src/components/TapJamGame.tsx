@@ -14,12 +14,11 @@ import PauseModal from "./PauseModal";
 import GameStatsComponent from "./GameStats";
 import { Play, Pause } from "lucide-react";
 
-const TILE_HEIGHT = 120;
+// Game Constants
 const COLUMNS = 4;
-const BASE_SPEED = 1.5;
-const LEVEL_THRESHOLD = 10;
-const SPEED_INCREASE = 0.2;
-const TILE_SPAWN_INTERVAL = 1200;
+const ROWS_ON_SCREEN = 6;
+const TILE_SPEED = 4; // pixels per frame
+const SPAWN_RATE = 60; // frames between spawns (1 tile per second at 60fps)
 
 export default function TapJamGame() {
   // Game State
@@ -40,15 +39,13 @@ export default function TapJamGame() {
   const [gameSessionToken, setGameSessionToken] = useState<string | null>(null);
   const [gameSessionId, setGameSessionId] = useState<string | null>(null);
   const [showLevelUp, setShowLevelUp] = useState(false);
-  const [nextTileSequence, setNextTileSequence] = useState(0);
-  const [lastColumnUsed, setLastColumnUsed] = useState<number | null>(null);
-  const [consecutiveColumnCount, setConsecutiveColumnCount] = useState(0);
 
-  // Refs
+  // Game refs
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<number | null>(null);
-  const lastTileSpawnRef = useRef<number>(0);
-  const gameStateRef = useRef<GameState>(gameState);
+  const animationRef = useRef<number>(0);
+  const frameCountRef = useRef<number>(0);
+  const nextTileIdRef = useRef<number>(0);
+  const gameStateRef = useRef(gameState);
   const tilesRef = useRef<Tile[]>([]);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -62,7 +59,13 @@ export default function TapJamGame() {
   const { data: usernameData, isLoading: isLoadingUserName } = useUsername(walletAddress);
   const { startGameSession, endGameSession, submitScore } = useGameSession(gameSessionToken);
 
-  // Update refs when state changes
+  // Calculate tile dimensions based on screen
+  const tileHeight = useMemo(() => {
+    if (typeof window === 'undefined') return 120;
+    return Math.floor(window.innerHeight / ROWS_ON_SCREEN);
+  }, []);
+
+  // Update refs
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
@@ -71,12 +74,11 @@ export default function TapJamGame() {
     tilesRef.current = tiles;
   }, [tiles]);
 
-  // Optimized state update functions
   const updateGameState = useCallback((updates: Partial<GameState>) => {
     setGameState(prev => ({ ...prev, ...updates }));
   }, []);
 
-  // Batch score submission with debouncing
+  // Score submission
   const submitScoreBatch = useCallback(
     async (finalScore?: number) => {
       const scoreToSubmit = finalScore || gameStateRef.current.localScore;
@@ -111,14 +113,13 @@ export default function TapJamGame() {
           draggable: false,
         });
       } catch (error) {
-        console.error("Error submitting score batch:", error);
+        console.error("Error submitting score:", error);
         updateGameState({ isSubmitting: false });
       }
     },
     [walletAddress, gameSessionId, submitScore, updateGameState]
   );
 
-  // Debounced score submission
   const debouncedSubmit = useCallback(() => {
     if (submitTimeoutRef.current) {
       clearTimeout(submitTimeoutRef.current);
@@ -128,109 +129,83 @@ export default function TapJamGame() {
     }, 2000);
   }, [submitScoreBatch]);
 
-  // Update score
-  const updateScore = useCallback(
-    (points: number) => {
+  // Create new tile
+  const createTile = useCallback((column: number): Tile => {
+    return {
+      id: `tile-${nextTileIdRef.current++}`,
+      column,
+      position: -tileHeight, // Start just above screen
+      isActive: true,
+      isClicked: false,
+      speed: TILE_SPEED + Math.floor(gameStateRef.current.level / 2), // Increase speed with level
+    };
+  }, [tileHeight]);
+
+  // Handle tile click
+  const handleTileClick = useCallback((tileId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) return;
+
+    setTiles(prevTiles => {
+      // Find the clicked tile
+      const clickedTileIndex = prevTiles.findIndex(t => t.id === tileId);
+      if (clickedTileIndex === -1) return prevTiles;
+
+      const clickedTile = prevTiles[clickedTileIndex];
+      
+      // Check if tile is still active and not already clicked
+      if (!clickedTile.isActive || clickedTile.isClicked) return prevTiles;
+
+      // Find the bottommost active tile (the one player should click next)
+      const activeTiles = prevTiles.filter(t => t.isActive && !t.isClicked);
+      const bottomMostTile = activeTiles.reduce((bottom, current) => 
+        current.position > bottom.position ? current : bottom
+      );
+
+      // Must click the bottommost tile
+      if (clickedTile.id !== bottomMostTile.id) {
+        // Wrong tile clicked - Game Over
+        updateGameState({ isPlaying: false, isGameOver: true });
+        return prevTiles;
+      }
+
+      // Correct tile clicked
+      const newTiles = [...prevTiles];
+      newTiles[clickedTileIndex] = {
+        ...clickedTile,
+        isClicked: true,
+        isActive: false
+      };
+
+      // Update score
       setGameState(prev => {
-        const newLocalScore = prev.localScore + points;
-        const newScore = prev.score + points;
+        const newScore = prev.score + 1;
+        const newLocalScore = prev.localScore + 1;
         const newTilesClicked = prev.tilesClicked + 1;
-        const newLevel = Math.floor(newTilesClicked / LEVEL_THRESHOLD) + 1;
-        
-        // Check for level up
+        const newLevel = Math.floor(newTilesClicked / 10) + 1;
+
         if (newLevel > prev.level) {
           setShowLevelUp(true);
           setTimeout(() => setShowLevelUp(false), 2000);
         }
 
         debouncedSubmit();
-        return { 
-          ...prev, 
-          localScore: newLocalScore, 
+
+        return {
+          ...prev,
           score: newScore,
+          localScore: newLocalScore,
           tilesClicked: newTilesClicked,
-          level: newLevel
+          level: newLevel,
         };
       });
-    },
-    [debouncedSubmit]
-  );
 
-  // Generate new tile with anti-consecutive logic
-  const generateTile = useCallback((): Tile => {
-    let column: number;
-    let attempts = 0;
-    const maxAttempts = 10;
-    
-    do {
-      column = Math.floor(Math.random() * COLUMNS);
-      attempts++;
-    } while (
-      attempts < maxAttempts &&
-      lastColumnUsed === column && 
-      consecutiveColumnCount >= 1
-    );
-
-    if (attempts >= maxAttempts) {
-      column = Math.floor(Math.random() * COLUMNS);
-    }
-
-    // Update column tracking
-    if (column === lastColumnUsed) {
-      setConsecutiveColumnCount(prev => prev + 1);
-    } else {
-      setConsecutiveColumnCount(0);
-      setLastColumnUsed(column);
-    }
-
-    const tileId = `tile-${Date.now()}-${Math.random()}`;
-    const sequence = nextTileSequence;
-    setNextTileSequence(prev => prev + 1);
-
-    return {
-      id: tileId,
-      column,
-      position: -TILE_HEIGHT * 2, // Spawn well above visible area
-      isActive: true,
-      isClicked: false,
-      speed: BASE_SPEED + (gameStateRef.current.level - 1) * SPEED_INCREASE,
-      sequence,
-    };
-  }, [lastColumnUsed, consecutiveColumnCount, nextTileSequence]);
-
-  // Handle tile click with sequence validation
-  const handleTileClick = useCallback((tileId: string) => {
-    if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) return;
-
-    const clickedTile = tilesRef.current.find(tile => tile.id === tileId);
-    if (!clickedTile) return;
-
-    // Check if it's the correct sequence
-    const activeTiles = tilesRef.current
-      .filter(tile => tile.isActive && !tile.isClicked)
-      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-
-    const expectedTile = activeTiles[0];
-
-    if (!expectedTile || clickedTile.id !== expectedTile.id) {
-      console.log('Wrong tile clicked - Game Over!');
-      updateGameState({ isPlaying: false, isGameOver: true });
-      return;
-    }
-
-    // Correct tile clicked
-    setTiles(prevTiles => {
-      return prevTiles.map(tile => {
-        if (tile.id === tileId && tile.isActive && !tile.isClicked) {
-          updateScore(1);
-          return { ...tile, isClicked: true, isActive: false };
-        }
-        return tile;
-      });
+      return newTiles;
     });
-  }, [updateScore, updateGameState]);
+  }, [updateGameState, debouncedSubmit]);
 
-  // Handle column click (fail if clicking empty space)
+  // Handle empty space click
   const handleColumnClick = useCallback((column: number, event: React.MouseEvent) => {
     if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) return;
 
@@ -238,37 +213,55 @@ export default function TapJamGame() {
     if (!rect) return;
 
     const clickY = event.clientY - rect.top;
-    const activeTileInColumn = tilesRef.current.find(tile => 
-      tile.column === column && 
-      tile.isActive && 
+    
+    // Check if there's a tile at this position
+    const tileAtPosition = tilesRef.current.find(tile => 
+      tile.column === column &&
+      tile.isActive &&
       !tile.isClicked &&
-      clickY >= tile.position && 
-      clickY <= tile.position + TILE_HEIGHT
+      clickY >= tile.position &&
+      clickY <= tile.position + tileHeight
     );
 
-    if (!activeTileInColumn) {
-      console.log('Clicked empty space in column', column);
+    if (!tileAtPosition) {
+      // Clicked empty space - Game Over
       updateGameState({ isPlaying: false, isGameOver: true });
     }
-  }, [updateGameState]);
+  }, [tileHeight, updateGameState]);
 
-  // Game loop
-  const gameLoop = useCallback((currentTime: number) => {
-    if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) return;
-
-    // Spawn new tiles
-    if (currentTime - lastTileSpawnRef.current > TILE_SPAWN_INTERVAL) {
-      const newTile = generateTile();
-      setTiles(prev => [...prev, newTile]);
-      lastTileSpawnRef.current = currentTime;
+  // Main game loop
+  const gameLoop = useCallback(() => {
+    if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) {
+      return;
     }
 
-    // Update tile positions and check for game over
+    frameCountRef.current++;
+
     setTiles(prevTiles => {
-      const gameHeight = gameAreaRef.current?.getBoundingClientRect().height || window.innerHeight;
-      
-      return prevTiles.filter(tile => {
-        if (tile.position > gameHeight + TILE_HEIGHT) {
+      let newTiles = [...prevTiles];
+
+      // Spawn new tile every SPAWN_RATE frames
+      if (frameCountRef.current % SPAWN_RATE === 0) {
+        // Always ensure there's at least one active tile on screen
+        const activeTiles = newTiles.filter(t => t.isActive);
+        if (activeTiles.length < 3) { // Keep 2-3 tiles on screen
+          const column = Math.floor(Math.random() * COLUMNS);
+          newTiles.push(createTile(column));
+        }
+      }
+
+      // Update tile positions
+      newTiles = newTiles.map(tile => ({
+        ...tile,
+        position: tile.position + tile.speed,
+      }));
+
+      // Remove off-screen tiles and check for game over
+      const screenHeight = window.innerHeight;
+      newTiles = newTiles.filter(tile => {
+        // Remove tiles that went off bottom
+        if (tile.position > screenHeight + tileHeight) {
+          // If active tile reached bottom without being clicked - Game Over
           if (tile.isActive && !tile.isClicked) {
             updateGameState({ isPlaying: false, isGameOver: true });
             return false;
@@ -276,24 +269,21 @@ export default function TapJamGame() {
           return false;
         }
         return true;
-      }).map(tile => ({
-        ...tile,
-        position: tile.position + tile.speed,
-      }));
+      });
+
+      return newTiles;
     });
 
-    if (gameStateRef.current.isPlaying && !gameStateRef.current.isPaused) {
-      animationRef.current = requestAnimationFrame(gameLoop);
-    }
-  }, [generateTile, updateGameState]);
+    // Continue game loop
+    animationRef.current = requestAnimationFrame(gameLoop);
+  }, [createTile, tileHeight, updateGameState]);
 
   // Start game
   const startGame = useCallback(() => {
     setTiles([]);
-    setNextTileSequence(0);
-    setLastColumnUsed(null);
-    setConsecutiveColumnCount(0);
-    
+    frameCountRef.current = 0;
+    nextTileIdRef.current = 0;
+
     updateGameState({
       score: 0,
       localScore: 0,
@@ -304,8 +294,7 @@ export default function TapJamGame() {
       tilesClicked: 0,
       gameStarted: true,
     });
-    lastTileSpawnRef.current = 0;
-    
+
     // Start game session
     if (walletAddress && !gameSessionId) {
       startGameSession.mutate(
@@ -322,22 +311,23 @@ export default function TapJamGame() {
       );
     }
 
+    // Start the game loop
     animationRef.current = requestAnimationFrame(gameLoop);
   }, [walletAddress, gameSessionId, startGameSession, gameLoop, updateGameState]);
 
-  // Pause/Resume game
+  // Pause/Resume
   const togglePause = useCallback(() => {
     if (gameState.isPlaying && !gameState.isGameOver) {
       const newPausedState = !gameState.isPaused;
       updateGameState({ isPaused: newPausedState });
       
       if (!newPausedState) {
-        lastTileSpawnRef.current = performance.now();
+        // Resume game loop
         animationRef.current = requestAnimationFrame(gameLoop);
       } else {
+        // Stop game loop
         if (animationRef.current) {
           cancelAnimationFrame(animationRef.current);
-          animationRef.current = null;
         }
       }
     }
@@ -350,9 +340,8 @@ export default function TapJamGame() {
     }
     
     setTiles([]);
-    setNextTileSequence(0);
-    setLastColumnUsed(null);
-    setConsecutiveColumnCount(0);
+    frameCountRef.current = 0;
+    nextTileIdRef.current = 0;
     
     updateGameState({
       score: 0,
@@ -419,37 +408,15 @@ export default function TapJamGame() {
         const shouldPause = document.hidden;
         updateGameState({ isPaused: shouldPause });
         
-        if (!shouldPause) {
-          lastTileSpawnRef.current = performance.now();
+        if (!shouldPause && gameState.isPlaying) {
           animationRef.current = requestAnimationFrame(gameLoop);
         }
       }
     };
 
-    const handleWindowBlur = () => {
-      if (gameState.gameStarted && !gameState.isGameOver) {
-        updateGameState({ isPaused: true });
-      }
-    };
-
-    const handleWindowFocus = () => {
-      if (gameState.gameStarted && !gameState.isGameOver && gameState.isPaused) {
-        updateGameState({ isPaused: false });
-        lastTileSpawnRef.current = performance.now();
-        animationRef.current = requestAnimationFrame(gameLoop);
-      }
-    };
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleWindowBlur);
-    window.addEventListener("focus", handleWindowFocus);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleWindowBlur);
-      window.removeEventListener("focus", handleWindowFocus);
-    };
-  }, [gameState.gameStarted, gameState.isGameOver, gameState.isPaused, gameLoop, updateGameState]);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [gameState.gameStarted, gameState.isGameOver, gameState.isPlaying, gameLoop, updateGameState]);
 
   // Cleanup
   useEffect(() => {
@@ -540,10 +507,10 @@ export default function TapJamGame() {
 
             <div className="text-center mb-8">
               <p className="text-white/90 mb-4 font-orbitron text-lg landscape:text-base">
-                Tap the tiles in order as they fall!
+                Tap the bottom tile as it reaches the bottom!
               </p>
               <p className="text-white/70 font-orbitron">
-                Miss the sequence and its game over!
+                Miss a tile and its game over!
               </p>
             </div>
 
@@ -566,51 +533,38 @@ export default function TapJamGame() {
           </div>
         )}
 
-        {/* Game Columns - Optimized rendering */}
+        {/* Game Columns */}
         {gameState.gameStarted && (
           <div className="flex h-full">
-            {Array.from({ length: COLUMNS }, (_, columnIndex) => {
-              // Pre-filter tiles for this column to avoid filtering on every render
-              const columnTiles = tiles.filter(tile => tile.column === columnIndex);
-              
-              return (
-                <div
-                  key={columnIndex}
-                  className="flex-1 border-r border-white/20 relative cursor-pointer hover:bg-white/5 transition-colors"
-                  style={{ borderRightWidth: columnIndex === COLUMNS - 1 ? 0 : 1 }}
-                  onClick={(e) => handleColumnClick(columnIndex, e)}
-                >
-                  {/* Pre-filtered column tiles */}
-                  {columnTiles.map(tile => (
+            {Array.from({ length: COLUMNS }, (_, columnIndex) => (
+              <div
+                key={columnIndex}
+                className="flex-1 border-r border-white/20 relative cursor-pointer"
+                style={{ borderRightWidth: columnIndex === COLUMNS - 1 ? 0 : 1 }}
+                onClick={(e) => handleColumnClick(columnIndex, e)}
+              >
+                {/* Tiles in this column */}
+                {tiles
+                  .filter(tile => tile.column === columnIndex)
+                  .map(tile => (
                     <div
                       key={tile.id}
                       className="absolute w-full cursor-pointer"
                       style={{
-                        height: TILE_HEIGHT,
-                        top: Math.max(0, tile.position),
-                        zIndex: 10,
+                        height: tileHeight,
+                        top: tile.position,
                         backgroundColor: tile.isClicked ? '#FFC5D3' : '#FFFFFF',
                         border: `2px solid ${tile.isClicked ? '#FF69B4' : '#CCCCCC'}`,
                         boxShadow: tile.isClicked 
                           ? '0 0 10px rgba(255, 197, 211, 0.8)' 
-                          : '0 2px 4px rgba(0,0,0,0.1)',
-                        // Add transform3d for hardware acceleration
-                        transform: 'translate3d(0, 0, 0)',
-                        willChange: 'top',
+                          : '0 2px 4px rgba(0,0,0,0.2)',
+                        zIndex: 10,
                       }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTileClick(tile.id);
-                      }}
-                      onTouchEnd={(e) => {
-                        e.stopPropagation();
-                        handleTileClick(tile.id);
-                      }}
+                      onClick={(e) => handleTileClick(tile.id, e)}
                     />
                   ))}
-                </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
