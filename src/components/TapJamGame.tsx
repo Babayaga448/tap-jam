@@ -142,8 +142,8 @@ export default function TapJamGame() {
   }, [tileHeight]);
 
   // Handle tile click
-  const handleTileClick = useCallback((tileId: string, event: React.MouseEvent) => {
-    event.stopPropagation();
+const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | React.TouchEvent) => {
+        event.stopPropagation();
     
     if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) return;
 
@@ -561,6 +561,7 @@ export default function TapJamGame() {
                         zIndex: 10,
                       }}
                       onClick={(e) => handleTileClick(tile.id, e)}
+                      onTouchEnd={(e) => handleTileClick(tile.id, e)}
                     />
                   ))}
               </div>
