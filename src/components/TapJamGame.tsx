@@ -16,12 +16,11 @@ import { Play, Pause } from "lucide-react";
 
 const TILE_HEIGHT = 120;
 const COLUMNS = 4;
-const BASE_SPEED = 1.5; // Reduced for smoother movement
+const BASE_SPEED = 2;
 const LEVEL_THRESHOLD = 10;
-const SPEED_INCREASE = 0.2;
-const TILE_SPAWN_INTERVAL = 1200; // Reduced for better spacing
+const SPEED_INCREASE = 0.3;
+const TILE_SPAWN_INTERVAL = 800;
 const GAME_WIDTH = 400; // Fixed game width
-const MIN_COLUMN_GAP = 2; // Minimum gap between consecutive tiles in same column
 
 export default function TapJamGame() {
   // Game State
@@ -42,9 +41,6 @@ export default function TapJamGame() {
   const [gameSessionToken, setGameSessionToken] = useState<string | null>(null);
   const [gameSessionId, setGameSessionId] = useState<string | null>(null);
   const [showLevelUp, setShowLevelUp] = useState(false);
-  const [nextTileSequence, setNextTileSequence] = useState(0); // Track expected tile sequence
-  const [lastColumnUsed, setLastColumnUsed] = useState<number | null>(null);
-  const [consecutiveColumnCount, setConsecutiveColumnCount] = useState(0);
 
   // Refs
   const gameAreaRef = useRef<HTMLDivElement>(null);
@@ -158,74 +154,33 @@ export default function TapJamGame() {
     [debouncedSubmit]
   );
 
-  // Generate new tile with anti-consecutive logic
+  // Generate new tile
   const generateTile = useCallback((): Tile => {
-    let column: number;
-    
-    // Prevent consecutive tiles in the same column
-    do {
-      column = Math.floor(Math.random() * COLUMNS);
-    } while (
-      lastColumnUsed === column && 
-      consecutiveColumnCount >= 1 // Prevent any consecutive tiles in same column
-    );
-
-    // Update column tracking
-    if (column === lastColumnUsed) {
-      setConsecutiveColumnCount(prev => prev + 1);
-    } else {
-      setConsecutiveColumnCount(0);
-      setLastColumnUsed(column);
-    }
-
-    const tileId = `tile-${Date.now()}-${Math.random()}`;
-    const sequence = nextTileSequence;
-    setNextTileSequence(prev => prev + 1);
-
     return {
-      id: tileId,
-      column,
+      id: Date.now() + Math.random().toString(),
+      column: Math.floor(Math.random() * COLUMNS),
       position: -TILE_HEIGHT,
       isActive: true,
       isClicked: false,
       speed: BASE_SPEED + (gameStateRef.current.level - 1) * SPEED_INCREASE,
-      sequence, // Add sequence number for order tracking
     };
-  }, [lastColumnUsed, consecutiveColumnCount, nextTileSequence]);
+  }, []);
 
-  // Handle tile click with sequence validation
+  // Handle tile click
   const handleTileClick = useCallback((tileId: string) => {
     if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) return;
 
-    const clickedTile = tilesRef.current.find(tile => tile.id === tileId);
-    
-    if (!clickedTile) return;
-
-    // Check if it's the correct sequence (must click tiles in order)
-    const activeTiles = tilesRef.current
-      .filter(tile => tile.isActive && !tile.isClicked)
-      .sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-
-    const expectedTile = activeTiles[0];
-
-    if (!expectedTile || clickedTile.id !== expectedTile.id) {
-      // Wrong sequence or tile - Game Over!
-      console.log('Wrong tile clicked! Expected:', expectedTile?.id, 'Got:', clickedTile.id);
-      updateGameState({ isPlaying: false, isGameOver: true });
-      return;
-    }
-
-    // Correct tile clicked
     setTiles(prevTiles => {
-      return prevTiles.map(tile => {
+      const newTiles = prevTiles.map(tile => {
         if (tile.id === tileId && tile.isActive && !tile.isClicked) {
           updateScore(1);
           return { ...tile, isClicked: true, isActive: false };
         }
         return tile;
       });
+      return newTiles;
     });
-  }, [updateScore, updateGameState]);
+  }, [updateScore]);
 
   // Handle column click (fail if clicking empty space)
   const handleColumnClick = useCallback((column: number, event: React.MouseEvent) => {
@@ -251,7 +206,7 @@ export default function TapJamGame() {
     }
   }, [updateGameState]);
 
-  // Improved game loop with better performance
+  // Game loop
   const gameLoop = useCallback((currentTime: number) => {
     if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) return;
 
@@ -290,10 +245,6 @@ export default function TapJamGame() {
   // Start game
   const startGame = useCallback(() => {
     setTiles([]);
-    setNextTileSequence(0);
-    setLastColumnUsed(null);
-    setConsecutiveColumnCount(0);
-    
     updateGameState({
       score: 0,
       localScore: 0,
@@ -328,9 +279,21 @@ export default function TapJamGame() {
   // Pause/Resume game
   const togglePause = useCallback(() => {
     if (gameState.isPlaying && !gameState.isGameOver) {
-      updateGameState({ isPaused: !gameState.isPaused });
-      if (!gameState.isPaused) {
+      const newPausedState = !gameState.isPaused;
+      updateGameState({ isPaused: newPausedState });
+      
+      // If resuming (newPausedState is false), restart the game loop
+      if (!newPausedState) {
+        console.log('Resuming game - restarting animation loop');
+        // Reset the last spawn time to current time to prevent immediate spawning
+        lastTileSpawnRef.current = performance.now();
         animationRef.current = requestAnimationFrame(gameLoop);
+      } else {
+        console.log('Pausing game - stopping animation loop');
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
+          animationRef.current = null;
+        }
       }
     }
   }, [gameState.isPlaying, gameState.isGameOver, gameState.isPaused, gameLoop, updateGameState]);
@@ -342,10 +305,6 @@ export default function TapJamGame() {
     }
     
     setTiles([]);
-    setNextTileSequence(0);
-    setLastColumnUsed(null);
-    setConsecutiveColumnCount(0);
-    
     updateGameState({
       score: 0,
       localScore: 0,
@@ -543,10 +502,10 @@ export default function TapJamGame() {
 
               <div className="text-center mb-6">
                 <p className="text-white/90 mb-2 font-orbitron">
-                  Tap the tiles in order as they fall!
+                  Tap the falling tiles to score points!
                 </p>
                 <p className="text-white/70 font-orbitron text-sm">
-                  Miss the sequence and its game over!
+                  Miss a tile and its game over!
                 </p>
               </div>
 
@@ -571,7 +530,7 @@ export default function TapJamGame() {
 
           {/* Game Columns */}
           {gameState.gameStarted && (
-            <div className="flex h-full relative">
+            <div className="flex h-full">
               {Array.from({ length: COLUMNS }, (_, index) => (
                 <div
                   key={index}
@@ -579,23 +538,30 @@ export default function TapJamGame() {
                   style={{ borderRightWidth: index === COLUMNS - 1 ? 0 : 1 }}
                   onClick={(e) => handleColumnClick(index, e)}
                 >
-                  {/* Column tiles */}
+                  {/* Column tiles with FIXED COLORS */}
                   {tiles
                     .filter(tile => tile.column === index)
                     .map(tile => (
                       <div
                         key={tile.id}
-                        className={`absolute w-full cursor-pointer transition-colors duration-150 border border-white/30 ${
-                          tile.isClicked ? 'bg-tileActive' : 'bg-tile hover:bg-tile/80'
-                        }`}
+                        className="absolute w-full cursor-pointer transition-all duration-150"
                         style={{
                           height: TILE_HEIGHT,
-                          top: Math.max(0, tile.position), // Ensure tiles are visible
+                          top: Math.max(0, tile.position),
                           zIndex: 10,
+                          // FIXED: Use bright white for unclicked, bright pink for clicked
+                          backgroundColor: tile.isClicked ? '#FFC5D3' : '#FFFFFF',
+                          border: `2px solid ${tile.isClicked ? '#FF69B4' : '#CCCCCC'}`,
+                          boxShadow: tile.isClicked 
+                            ? '0 0 10px rgba(255, 197, 211, 0.8)' 
+                            : '0 2px 4px rgba(0,0,0,0.2)',
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log('Tile clicked:', tile.id, 'sequence:', tile.sequence);
+                          handleTileClick(tile.id);
+                        }}
+                        onTouchEnd={(e) => {
+                          e.stopPropagation();
                           handleTileClick(tile.id);
                         }}
                       />
