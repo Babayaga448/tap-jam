@@ -190,7 +190,7 @@ export default function TapJamGame() {
     return {
       id: tileId,
       column,
-      position: -TILE_HEIGHT,
+      position: -TILE_HEIGHT * 2, // Spawn well above visible area
       isActive: true,
       isClicked: false,
       speed: BASE_SPEED + (gameStateRef.current.level - 1) * SPEED_INCREASE,
