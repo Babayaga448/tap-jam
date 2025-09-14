@@ -15,6 +15,11 @@ export const metadata: Metadata = {
   description:
     "Tap Jam is a fast-paced piano tiles inspired game. Test your reflexes and rhythm by tapping the correct tiles as they fall down the screen. Connect with Monad Games ID to compete on the leaderboard!",
   creator: "Tap Jam Team",
+    icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

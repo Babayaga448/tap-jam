@@ -541,7 +541,7 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
                       style={{
                         height: tileHeight,
                         top: tile.position,
-                        backgroundColor: tile.isClicked ? '#FFC5D3' : '#FFFFFF',
+                        backgroundColor: tile.isClicked ? '#FFC5D3' : '#200052',
                         border: `2px solid ${tile.isClicked ? '#FF69B4' : '#CCCCCC'}`,
                         boxShadow: tile.isClicked 
                           ? '0 0 10px rgba(255, 197, 211, 0.8)' 
