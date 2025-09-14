@@ -35,13 +35,26 @@ const aj = arcjet({
 
 export async function POST(request: Request) {
   try {
+    // Add safety checks for environment variables at the very beginning
+    if (!process.env.PRIVATE_KEY || !process.env.CONTRACT_ADDRESS || !process.env.JWT_SECRET) {
+      console.error("Missing required environment variables:", {
+        hasPrivateKey: !!process.env.PRIVATE_KEY,
+        hasContractAddress: !!process.env.CONTRACT_ADDRESS,
+        hasJwtSecret: !!process.env.JWT_SECRET,
+      });
+      return NextResponse.json(
+        { message: "Server configuration error - missing environment variables" },
+        { status: 500 }
+      );
+    }
+
     const privy_token = (await cookies()).get("privy-token");
 
     const { player, scoreAmount, transactionAmount, sessionId } =
       await request.json();
 
     const decision = await aj.protect(request, {
-      userId: player || privy_token,
+      userId: player || privy_token?.value,
       requested: 1,
     }); // Deduct 1 token from the bucket
 
@@ -110,7 +123,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. VALIDATE ENVIRONMENT VARIABLES
+    // 3. VALIDATE ENVIRONMENT VARIABLES (moved to top but keeping this for double-check)
     if (!process.env.PRIVATE_KEY || !process.env.CONTRACT_ADDRESS) {
       console.error("Missing required environment variables");
       return NextResponse.json(
