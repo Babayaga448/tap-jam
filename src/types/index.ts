@@ -5,6 +5,7 @@ export interface Tile {
   isActive: boolean;
   isClicked: boolean;
   speed: number;
+  sequence?: number; // Add sequence property for order tracking
 }
 
 export interface GameState {
