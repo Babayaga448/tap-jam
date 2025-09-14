@@ -144,6 +144,7 @@ export default function TapJamGame() {
   // Handle tile click
 const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | React.TouchEvent) => {
         event.stopPropagation();
+        event.preventDefault();
     
     if (!gameStateRef.current.isPlaying || gameStateRef.current.isPaused) return;
 
@@ -560,8 +561,10 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
                           : '0 2px 4px rgba(0,0,0,0.2)',
                         zIndex: 10,
                       }}
-                      onClick={(e) => handleTileClick(tile.id, e)}
-                      onTouchEnd={(e) => handleTileClick(tile.id, e)}
+                    {...('ontouchstart' in window 
+                    ? { onTouchEnd: (e) => handleTileClick(tile.id, e) }
+                    : { onClick: (e) => handleTileClick(tile.id, e) }
+                    )}
                     />
                   ))}
               </div>
