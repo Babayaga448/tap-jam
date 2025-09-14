@@ -38,7 +38,6 @@ export default function TapJamGame() {
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [gameSessionToken, setGameSessionToken] = useState<string | null>(null);
   const [gameSessionId, setGameSessionId] = useState<string | null>(null);
-  const [showLevelUp, setShowLevelUp] = useState(false);
 
   // Game refs
   const gameAreaRef = useRef<HTMLDivElement>(null);
@@ -187,8 +186,6 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
         const newLevel = Math.floor(newTilesClicked / 10) + 1;
 
         if (newLevel > prev.level) {
-          setShowLevelUp(true);
-          setTimeout(() => setShowLevelUp(false), 2000);
         }
 
         debouncedSubmit();
@@ -478,16 +475,6 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
         </div>
       )}
 
-      {/* Level Up Notification */}
-      {showLevelUp && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 level-notification">
-          <div className="bg-black/80 backdrop-blur-sm rounded-2xl px-8 py-4 border border-tileActive shadow-2xl">
-            <h2 className="text-3xl font-bold text-tileActive text-center font-orbitron">
-              LEVEL {gameState.level}
-            </h2>
-          </div>
-        </div>
-      )}
 
       {/* Game Area */}
       <div

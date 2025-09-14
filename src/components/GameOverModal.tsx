@@ -43,35 +43,26 @@ export default function GameOverModal({
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8 landscape:mb-6">
-          <div className="bg-white/10 rounded-lg p-4 landscape:p-3">
+        <div className="grid grid-cols-2 gap-4 mb-8 landscape:mb-6">  {/* ← CHANGE grid-cols-3 to grid-cols-2 */}
+        <div className="bg-white/10 rounded-lg p-4 landscape:p-3">
             <div className="text-2xl landscape:text-xl font-bold text-white font-orbitron">
-              {gameStats.score}
+            {gameStats.score}
             </div>
             <div className="text-xs text-white/60 font-orbitron font-medium">
-              SCORE
+            SCORE
             </div>
-          </div>
-          
-          <div className="bg-white/10 rounded-lg p-4 landscape:p-3">
-            <div className="text-2xl landscape:text-xl font-bold text-tileActive font-orbitron">
-              {gameStats.level}
-            </div>
-            <div className="text-xs text-white/60 font-orbitron font-medium">
-              LEVEL
-            </div>
-          </div>
-          
-          <div className="bg-white/10 rounded-lg p-4 landscape:p-3">
-            <div className="text-2xl landscape:text-xl font-bold text-white font-orbitron">
-              {gameStats.accuracy}%
-            </div>
-            <div className="text-xs text-white/60 font-orbitron font-medium">
-              ACCURACY
-            </div>
-          </div>
         </div>
-
+        
+        <div className="bg-white/10 rounded-lg p-4 landscape:p-3">
+            <div className="text-2xl landscape:text-xl font-bold text-tileActive font-orbitron">
+            {gameStats.level}
+            </div>
+            <div className="text-xs text-white/60 font-orbitron font-medium">
+            LEVEL
+            </div>
+        </div>
+        </div>
+        
         {/* Restart Button */}
         <button
           onClick={handleButtonClick}
