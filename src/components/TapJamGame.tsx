@@ -565,7 +565,15 @@ export default function TapJamGame() {
 
           {/* Game Columns */}
           {gameState.gameStarted && (
-            <div className="flex h-full">
+            <div className="flex h-full relative">
+              {/* Debug info */}
+              <div className="absolute top-2 left-2 text-white text-xs bg-black/50 p-2 rounded z-50">
+                <div>Tiles: {tiles.length}</div>
+                <div>Active: {tiles.filter(t => t.isActive).length}</div>
+                <div>Playing: {gameState.isPlaying ? 'Yes' : 'No'}</div>
+                <div>Paused: {gameState.isPaused ? 'Yes' : 'No'}</div>
+              </div>
+              
               {Array.from({ length: COLUMNS }, (_, index) => (
                 <div
                   key={index}
@@ -579,15 +587,17 @@ export default function TapJamGame() {
                     .map(tile => (
                       <div
                         key={tile.id}
-                        className={`absolute w-full cursor-pointer transition-colors duration-150 ${
+                        className={`absolute w-full cursor-pointer transition-colors duration-150 border border-white/30 ${
                           tile.isClicked ? 'bg-tileActive' : 'bg-tile hover:bg-tile/80'
                         }`}
                         style={{
                           height: TILE_HEIGHT,
-                          top: tile.position,
+                          top: Math.max(0, tile.position), // Ensure tiles are visible
+                          zIndex: 10,
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
+                          console.log('Tile clicked:', tile.id, 'sequence:', tile.sequence);
                           handleTileClick(tile.id);
                         }}
                       />
@@ -606,6 +616,7 @@ export default function TapJamGame() {
         isGameOver={gameState.isGameOver}
         score={gameState.score}
         level={gameState.level}
+        onResume={togglePause}
       />
 
       <GameOverModal
