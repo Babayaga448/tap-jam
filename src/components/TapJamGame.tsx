@@ -73,7 +73,8 @@ export default function TapJamGame() {
   // Audio Functions
   const loadAudioTrack = useCallback(async () => {
     try {
-      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const context = new AudioContextClass();
       const response = await fetch('/sounds/synthwar.mp3'); // Replace with your track filename
       const arrayBuffer = await response.arrayBuffer();
       const buffer = await context.decodeAudioData(arrayBuffer);
