@@ -116,7 +116,6 @@ export default function TapJamGame() {
   // Audio Functions
   const initializeSynth = useCallback(async () => {
     try {
-      await Tone.start();
       const pianoSynth = new Tone.Synth({
         oscillator: { type: 'sine' },
         envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 1 }
@@ -373,7 +372,7 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
   }, [createTile, tileHeight, updateGameState]);
 
   // Start game
-const startGame = useCallback(async () => { // Make it async
+const startGame = useCallback(async () => {
   setTiles([]);
   frameCountRef.current = 0;
   nextTileIdRef.current = 0;
@@ -393,11 +392,17 @@ const startGame = useCallback(async () => { // Make it async
   currentPatternRef.current = 0;
   patternNoteIndexRef.current = 0;
 
-  // ADD THIS: Ensure audio is ready on user click
+  // Ensure audio is ready on user click
   try {
-    if (synth && Tone.context.state !== 'running') {
+    // Always ensure synth exists
+    if (!synth) {
+      await initializeSynth();
+    }
+    
+    // Always ensure Tone context is running
+    if (Tone.context.state !== 'running') {
       await Tone.start();
-      console.log('Audio context started');
+      console.log('Audio context started on user click');
     }
   } catch (error) {
     console.error('Failed to start audio:', error);
@@ -421,7 +426,7 @@ const startGame = useCallback(async () => { // Make it async
 
   // Start the game loop
   animationRef.current = requestAnimationFrame(gameLoop);
-}, [walletAddress, gameSessionId, startGameSession, gameLoop, updateGameState, synth]);
+}, [walletAddress, gameSessionId, startGameSession, gameLoop, updateGameState, synth, initializeSynth]);
   // Pause/Resume
   const togglePause = useCallback(() => {
     if (gameState.isPlaying && !gameState.isGameOver) {
