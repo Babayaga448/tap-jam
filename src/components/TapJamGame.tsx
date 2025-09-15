@@ -73,7 +73,17 @@ export default function TapJamGame() {
   // Musical Patterns - Your selected 10 patterns
   const musicalPatterns = useMemo(() => [
     // Super Mario Bros Theme
-    ['E5', 'E5', 'E5', 'C5', 'E5', 'G5', 'G4', 'C5', 'G4', 'E4', 'A4', 'B4', 'Bb4', 'A4'],
+    [
+  'E5', 'E5', 'E5', 'C5', 'E5', 'G5', 'G4',
+  'C5', 'G4', 'E4', 'A4', 'B4', 'Bb4', 'A4',
+  'G4', 'E5', 'G5', 'A5', 'F5', 'G5', 'E5', 'C5', 'D5', 'B4',
+  'C5', 'G4', 'E4', 'A4', 'B4', 'Bb4', 'A4',
+  'G4', 'E5', 'G5', 'A5', 'F5', 'G5', 'E5', 'C5', 'D5', 'B4',
+  'G5', 'F#5', 'F5', 'D#5', 'E5', 'G#4', 'A4', 'C5',
+  'A4', 'C5', 'D5', 'G5', 'F#5', 'F5', 'D#5', 'E5',
+  'C6', 'C6', 'C6', 'G5', 'F#5', 'F5', 'D#5', 'E5',
+  'G#4', 'A4', 'C5', 'A4', 'C5', 'D5'
+],
     
     // Tetris Theme (Korobeiniki)
     ['E5', 'B4', 'C5', 'D5', 'C5', 'B4', 'A4', 'A4', 'C5', 'E5', 'D5', 'C5', 'B4'],
@@ -220,7 +230,7 @@ export default function TapJamGame() {
       position: -tileHeight, // Start just above screen
       isActive: true,
       isClicked: false,
-      speed: TILE_SPEED + Math.floor(gameStateRef.current.level / 2), // Increase speed with level
+      speed: TILE_SPEED + (gameStateRef.current.level * 2), // Increase speed with level
     };
   }, [tileHeight]);
 
@@ -379,10 +389,6 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
       gameStarted: true,
     });
 
-    // Initialize audio
-    if (!synth) {
-      initializeSynth();
-    }
     // Reset musical pattern for new game
     currentPatternRef.current = 0;
     patternNoteIndexRef.current = 0;
@@ -529,6 +535,12 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
       }
     };
   }, [synth]);
+
+  useEffect(() => {
+  if (walletAddress) { // Use walletAddress instead of authenticated
+    initializeSynth();
+  }
+}, [walletAddress, initializeSynth]);
 
   // Memoized game stats
   const gameStats: GameStats = useMemo(
