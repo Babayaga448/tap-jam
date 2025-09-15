@@ -43,7 +43,7 @@ export default function TapJamGame() {
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const currentTimeRef = useRef<number>(0);
-  const segmentDuration = 0.5; // 1 second per click
+  const segmentDuration = 0.2; // 1 second per click
 
   // Game refs
   const gameAreaRef = useRef<HTMLDivElement>(null);
@@ -75,7 +75,7 @@ export default function TapJamGame() {
     try {
       const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const context = new AudioContextClass();
-      const response = await fetch('/sounds/synthwar.mp3'); // Replace with your track filename
+      const response = await fetch('/sounds/elne.mp3'); // Replace with your track filename
       const arrayBuffer = await response.arrayBuffer();
       const buffer = await context.decodeAudioData(arrayBuffer);
       
