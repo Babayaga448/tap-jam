@@ -39,6 +39,12 @@ export default function TapJamGame() {
   const [gameSessionToken, setGameSessionToken] = useState<string | null>(null);
   const [gameSessionId, setGameSessionId] = useState<string | null>(null);
 
+  // Audio State
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+  const currentTimeRef = useRef<number>(0);
+  const segmentDuration = 1; // 1 second per click
+
   // Game refs
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>(0);
@@ -63,6 +69,47 @@ export default function TapJamGame() {
     if (typeof window === 'undefined') return 120;
     return Math.floor(window.innerHeight / ROWS_ON_SCREEN);
   }, []);
+
+  // Audio Functions
+  const loadAudioTrack = useCallback(async () => {
+    try {
+      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const response = await fetch('/sounds/synthwar.mp3'); // Replace with your track filename
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = await context.decodeAudioData(arrayBuffer);
+      
+      setAudioContext(context);
+      setAudioBuffer(buffer);
+      currentTimeRef.current = 0;
+      
+      console.log('Audio track loaded successfully');
+    } catch (error) {
+      console.error('Error loading audio:', error);
+    }
+  }, []);
+
+  const playNextSegment = useCallback(() => {
+    if (!audioContext || !audioBuffer) return;
+    
+    try {
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContext.destination);
+      
+      // Play segment starting from current position
+      source.start(0, currentTimeRef.current, segmentDuration);
+      
+      // Move to next segment
+      currentTimeRef.current += segmentDuration;
+      
+      // Reset to beginning when track ends
+      if (currentTimeRef.current >= audioBuffer.duration) {
+        currentTimeRef.current = 0;
+      }
+    } catch (error) {
+      console.error('Error playing audio segment:', error);
+    }
+  }, [audioContext, audioBuffer, segmentDuration]);
 
   // Update refs
   useEffect(() => {
@@ -170,7 +217,9 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
         return prevTiles;
       }
 
-      // Correct tile clicked
+      // Correct tile clicked - PLAY AUDIO HERE
+      playNextSegment();
+
       const newTiles = [...prevTiles];
       newTiles[clickedTileIndex] = {
         ...clickedTile,
@@ -201,7 +250,7 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
 
       return newTiles;
     });
-  }, [updateGameState, debouncedSubmit]);
+  }, [updateGameState, debouncedSubmit, playNextSegment]);
 
   // Handle empty space click
   const handleColumnClick = useCallback((column: number, event: React.MouseEvent) => {
@@ -293,6 +342,13 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
       gameStarted: true,
     });
 
+    // Initialize audio
+    if (!audioBuffer) {
+      loadAudioTrack();
+    }
+    // Reset audio position for new game
+    currentTimeRef.current = 0;
+
     // Start game session
     if (walletAddress && !gameSessionId) {
       startGameSession.mutate(
@@ -311,7 +367,7 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
 
     // Start the game loop
     animationRef.current = requestAnimationFrame(gameLoop);
-  }, [walletAddress, gameSessionId, startGameSession, gameLoop, updateGameState]);
+  }, [walletAddress, gameSessionId, startGameSession, gameLoop, updateGameState, loadAudioTrack, audioBuffer]);
 
   // Pause/Resume
   const togglePause = useCallback(() => {
@@ -340,6 +396,9 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
     setTiles([]);
     frameCountRef.current = 0;
     nextTileIdRef.current = 0;
+    
+    // Reset audio position
+    currentTimeRef.current = 0;
     
     updateGameState({
       score: 0,
@@ -425,8 +484,12 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
       if (submitTimeoutRef.current) {
         clearTimeout(submitTimeoutRef.current);
       }
+      // Clean up audio context
+      if (audioContext) {
+        audioContext.close();
+      }
     };
-  }, []);
+  }, [audioContext]);
 
   // Memoized game stats
   const gameStats: GameStats = useMemo(
@@ -474,7 +537,6 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
           </button>
         </div>
       )}
-
 
       {/* Game Area */}
       <div
