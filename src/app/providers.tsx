@@ -28,7 +28,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           defaultChain: monadTestnet,
           supportedChains: [monadTestnet],
           appearance: {
-            logo: "https://via.placeholder.com/40x40/836EF9/FFFFFF?text=TJ",
+            logo: "https://tapjam.xyz/piano.png",
             landingHeader: "Tap Jam",
             loginMessage: "Fast-paced sound tile game!",
           },

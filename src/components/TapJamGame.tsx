@@ -13,6 +13,7 @@ import GameOverModal from "./GameOverModal";
 import PauseModal from "./PauseModal";
 import GameStatsComponent from "./GameStats";
 import { Play, Pause } from "lucide-react";
+import * as Tone from 'tone';
 
 // Game Constants
 const COLUMNS = 4;
@@ -40,10 +41,9 @@ export default function TapJamGame() {
   const [gameSessionId, setGameSessionId] = useState<string | null>(null);
 
   // Audio State
-  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
-  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
-  const currentTimeRef = useRef<number>(0);
-  const segmentDuration = 0.4; // 1 second per click
+  const [synth, setSynth] = useState<Tone.Synth | null>(null);
+  const currentPatternRef = useRef<number>(0);
+  const patternNoteIndexRef = useRef<number>(0);
 
   // Game refs
   const gameAreaRef = useRef<HTMLDivElement>(null);
@@ -70,47 +70,83 @@ export default function TapJamGame() {
     return Math.floor(window.innerHeight / ROWS_ON_SCREEN);
   }, []);
 
+  // Musical Patterns - Your selected 10 patterns
+  const musicalPatterns = useMemo(() => [
+    // Super Mario Bros Theme
+    ['E5', 'E5', 'E5', 'C5', 'E5', 'G5', 'G4', 'C5', 'G4', 'E4', 'A4', 'B4', 'Bb4', 'A4'],
+    
+    // Tetris Theme (Korobeiniki)
+    ['E5', 'B4', 'C5', 'D5', 'C5', 'B4', 'A4', 'A4', 'C5', 'E5', 'D5', 'C5', 'B4'],
+    
+    // Zelda Main Theme
+    ['A4', 'A4', 'A4', 'A4', 'A4', 'A4', 'G4', 'A4', 'G4', 'G4', 'G4', 'G4', 'G4', 'F4', 'G4'],
+    
+    // Pac-Man Theme
+    ['C4', 'C5', 'G4', 'E4', 'C5', 'G4', 'E4', 'C5', 'G4', 'E4', 'C4', 'C4', 'C4'],
+    
+    // Happy Birthday
+    ['C4', 'C4', 'D4', 'C4', 'F4', 'E4', 'C4', 'C4', 'D4', 'C4', 'G4', 'F4'],
+    
+    // Frère Jacques
+    ['C4', 'D4', 'E4', 'C4', 'C4', 'D4', 'E4', 'C4', 'E4', 'F4', 'G4', 'E4', 'F4', 'G4'],
+    
+    // London Bridge
+    ['G4', 'A4', 'G4', 'F4', 'E4', 'F4', 'G4', 'D4', 'E4', 'F4', 'E4', 'F4', 'G4'],
+    
+    // Row Your Boat
+    ['C4', 'C4', 'C4', 'D4', 'E4', 'E4', 'D4', 'E4', 'F4', 'G4'],
+    
+    // Blue Note Scale
+    ['C4', 'Eb4', 'F4', 'F#4', 'G4', 'Bb4', 'C5'],
+    
+    // Jazz Standard Progression
+    ['C4', 'E4', 'G4', 'C5', 'A4', 'F4', 'D4', 'G4', 'C4'],
+  ], []);
+
   // Audio Functions
-  const loadAudioTrack = useCallback(async () => {
+  const initializeSynth = useCallback(async () => {
     try {
-      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const context = new AudioContextClass();
-      const response = await fetch('/sounds/synthwar.mp3'); // Replace with your track filename
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = await context.decodeAudioData(arrayBuffer);
+      await Tone.start();
+      const pianoSynth = new Tone.Synth({
+        oscillator: { type: 'sine' },
+        envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 1 }
+      }).toDestination();
       
-      setAudioContext(context);
-      setAudioBuffer(buffer);
-      currentTimeRef.current = 0;
-      
-      console.log('Audio track loaded successfully');
+      setSynth(pianoSynth);
+      console.log('Piano synthesizer initialized successfully');
     } catch (error) {
-      console.error('Error loading audio:', error);
+      console.error('Error initializing synthesizer:', error);
     }
   }, []);
 
-  const playNextSegment = useCallback(() => {
-    if (!audioContext || !audioBuffer) return;
+  const playPatternNote = useCallback(() => {
+    if (!synth) return;
     
     try {
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContext.destination);
+      // Get current pattern
+      const currentPattern = musicalPatterns[currentPatternRef.current];
       
-      // Play segment starting from current position
-      source.start(0, currentTimeRef.current, segmentDuration);
+      // Get next note in the current pattern
+      const noteToPlay = currentPattern[patternNoteIndexRef.current];
       
-      // Move to next segment
-      currentTimeRef.current += segmentDuration;
+      // Play the note
+      synth.triggerAttackRelease(noteToPlay, '8n');
       
-      // Reset to beginning when track ends
-      if (currentTimeRef.current >= audioBuffer.duration) {
-        currentTimeRef.current = 0;
+      // Advance to next note
+      patternNoteIndexRef.current += 1;
+      
+      // Check if current pattern is finished
+      if (patternNoteIndexRef.current >= currentPattern.length) {
+        // Move to next pattern
+        currentPatternRef.current = (currentPatternRef.current + 1) % musicalPatterns.length;
+        patternNoteIndexRef.current = 0;
+        
+        console.log(`Switching to pattern ${currentPatternRef.current + 1} of ${musicalPatterns.length}`);
       }
     } catch (error) {
-      console.error('Error playing audio segment:', error);
+      console.error('Error playing pattern note:', error);
     }
-  }, [audioContext, audioBuffer, segmentDuration]);
+  }, [synth, musicalPatterns]);
 
   // Update refs
   useEffect(() => {
@@ -218,8 +254,8 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
         return prevTiles;
       }
 
-      // Correct tile clicked - PLAY AUDIO HERE
-      playNextSegment();
+      // Correct tile clicked - PLAY MUSICAL PATTERN NOTE
+      playPatternNote();
 
       const newTiles = [...prevTiles];
       newTiles[clickedTileIndex] = {
@@ -251,7 +287,7 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
 
       return newTiles;
     });
-  }, [updateGameState, debouncedSubmit, playNextSegment]);
+  }, [updateGameState, debouncedSubmit, playPatternNote]);
 
   // Handle empty space click
   const handleColumnClick = useCallback((column: number, event: React.MouseEvent) => {
@@ -344,11 +380,12 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
     });
 
     // Initialize audio
-    if (!audioBuffer) {
-      loadAudioTrack();
+    if (!synth) {
+      initializeSynth();
     }
-    // Reset audio position for new game
-    currentTimeRef.current = 0;
+    // Reset musical pattern for new game
+    currentPatternRef.current = 0;
+    patternNoteIndexRef.current = 0;
 
     // Start game session
     if (walletAddress && !gameSessionId) {
@@ -368,7 +405,7 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
 
     // Start the game loop
     animationRef.current = requestAnimationFrame(gameLoop);
-  }, [walletAddress, gameSessionId, startGameSession, gameLoop, updateGameState, loadAudioTrack, audioBuffer]);
+  }, [walletAddress, gameSessionId, startGameSession, gameLoop, updateGameState, initializeSynth, synth]);
 
   // Pause/Resume
   const togglePause = useCallback(() => {
@@ -398,8 +435,9 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
     frameCountRef.current = 0;
     nextTileIdRef.current = 0;
     
-    // Reset audio position
-    currentTimeRef.current = 0;
+    // Reset musical pattern
+    currentPatternRef.current = 0;
+    patternNoteIndexRef.current = 0;
     
     updateGameState({
       score: 0,
@@ -485,12 +523,12 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
       if (submitTimeoutRef.current) {
         clearTimeout(submitTimeoutRef.current);
       }
-      // Clean up audio context
-      if (audioContext) {
-        audioContext.close();
+      // Clean up synthesizer
+      if (synth) {
+        synth.dispose();
       }
     };
-  }, [audioContext]);
+  }, [synth]);
 
   // Memoized game stats
   const gameStats: GameStats = useMemo(
