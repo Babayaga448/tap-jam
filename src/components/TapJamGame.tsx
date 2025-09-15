@@ -43,7 +43,7 @@ export default function TapJamGame() {
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const currentTimeRef = useRef<number>(0);
-  const segmentDuration = 1; // 1 second per click
+  const segmentDuration = 0.5; // 1 second per click
 
   // Game refs
   const gameAreaRef = useRef<HTMLDivElement>(null);
