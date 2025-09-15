@@ -373,46 +373,55 @@ const handleTileClick = useCallback((tileId: string, event: React.MouseEvent | R
   }, [createTile, tileHeight, updateGameState]);
 
   // Start game
-  const startGame = useCallback(() => {
-    setTiles([]);
-    frameCountRef.current = 0;
-    nextTileIdRef.current = 0;
+const startGame = useCallback(async () => { // Make it async
+  setTiles([]);
+  frameCountRef.current = 0;
+  nextTileIdRef.current = 0;
 
-    updateGameState({
-      score: 0,
-      localScore: 0,
-      level: 1,
-      isPlaying: true,
-      isGameOver: false,
-      isPaused: false,
-      tilesClicked: 0,
-      gameStarted: true,
-    });
+  updateGameState({
+    score: 0,
+    localScore: 0,
+    level: 1,
+    isPlaying: true,
+    isGameOver: false,
+    isPaused: false,
+    tilesClicked: 0,
+    gameStarted: true,
+  });
 
-    // Reset musical pattern for new game
-    currentPatternRef.current = 0;
-    patternNoteIndexRef.current = 0;
+  // Reset musical pattern for new game
+  currentPatternRef.current = 0;
+  patternNoteIndexRef.current = 0;
 
-    // Start game session
-    if (walletAddress && !gameSessionId) {
-      startGameSession.mutate(
-        { walletAddress },
-        {
-          onSuccess: data => {
-            setGameSessionToken(data.sessionToken);
-            setGameSessionId(data.sessionId);
-          },
-          onError: error => {
-            console.error("Error starting game session:", error);
-          },
-        }
-      );
+  // ADD THIS: Ensure audio is ready on user click
+  try {
+    if (synth && Tone.context.state !== 'running') {
+      await Tone.start();
+      console.log('Audio context started');
     }
+  } catch (error) {
+    console.error('Failed to start audio:', error);
+  }
 
-    // Start the game loop
-    animationRef.current = requestAnimationFrame(gameLoop);
-  }, [walletAddress, gameSessionId, startGameSession, gameLoop, updateGameState, initializeSynth, synth]);
+  // Start game session
+  if (walletAddress && !gameSessionId) {
+    startGameSession.mutate(
+      { walletAddress },
+      {
+        onSuccess: data => {
+          setGameSessionToken(data.sessionToken);
+          setGameSessionId(data.sessionId);
+        },
+        onError: error => {
+          console.error("Error starting game session:", error);
+        },
+      }
+    );
+  }
 
+  // Start the game loop
+  animationRef.current = requestAnimationFrame(gameLoop);
+}, [walletAddress, gameSessionId, startGameSession, gameLoop, updateGameState, synth]);
   // Pause/Resume
   const togglePause = useCallback(() => {
     if (gameState.isPlaying && !gameState.isGameOver) {
